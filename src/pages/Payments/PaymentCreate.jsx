@@ -10,6 +10,10 @@ const fmt = (val) => {
   return '₹' + num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+const getRetailerId = (sale, fallback = '') => sale?.retailer?.id || sale?.retailer_id || sale?.retailer || fallback;
+
+const getRetailerName = (sale) => sale?.retailer?.shop_name || sale?.retailer?.name || sale?.retailer_name || '—';
+
 export default function PaymentCreate() {
   const api = useAxios();
   const navigate = useNavigate();
@@ -17,12 +21,13 @@ export default function PaymentCreate() {
 
   // Pre-fill from SaleDetail "Record Payment" button
   const prefill = location.state || {};
+  const lockedFromSale = Boolean(prefill.saleId);
 
-  const { register, handleSubmit, formState: { errors }, watch } = useForm({
+  const { register, handleSubmit, formState: { errors }, watch, setValue, reset } = useForm({
     defaultValues: {
       retailer: prefill.retailerId ? String(prefill.retailerId) : '',
       sale: prefill.saleId ? String(prefill.saleId) : '',
-      amount: '',
+      amount: prefill.amount ? String(prefill.amount) : '',
       payment_method: 'cash',
       payment_date: new Date().toISOString().split('T')[0],
       notes: '',
@@ -31,6 +36,7 @@ export default function PaymentCreate() {
 
   const [retailers, setRetailers] = useState([]);
   const [sales, setSales] = useState([]);
+  const [lockedSale, setLockedSale] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState('');
 
@@ -45,8 +51,68 @@ export default function PaymentCreate() {
     }).catch(() => {});
   }, []);
 
+  // Lock the form to a specific sale when opened from SaleDetail.
+  useEffect(() => {
+    if (!lockedFromSale || !prefill.saleId) {
+      setLockedSale(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [saleRes, paymentRes] = await Promise.all([
+          api.get(API_ENDPOINTS.SALE_DETAIL(prefill.saleId)),
+          api.get(API_ENDPOINTS.SALE_PAYMENTS(prefill.saleId)),
+        ]);
+
+        if (cancelled) return;
+
+        const sale = saleRes.data || {};
+        const paymentsData = Array.isArray(paymentRes.data) ? paymentRes.data : paymentRes.data?.results ?? [];
+        const totalAmount = parseFloat(sale.total_amount || sale.total || 0);
+        const paidAmount = paymentsData.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
+        const remainingDue = Math.max(0, totalAmount - paidAmount);
+        const retailerId = getRetailerId(sale, prefill.retailerId || '');
+
+        setLockedSale({
+          saleId: String(sale.id || prefill.saleId),
+          invoiceNumber: sale.invoice_number || `#${sale.id}`,
+          retailerId: retailerId ? String(retailerId) : '',
+          retailerName: getRetailerName(sale),
+          totalAmount,
+          paidAmount,
+          remainingDue,
+        });
+
+        reset((currentValues) => ({
+          ...currentValues,
+          retailer: retailerId ? String(retailerId) : '',
+          sale: String(sale.id || prefill.saleId),
+          amount: String(prefill.amount || remainingDue || ''),
+        }));
+
+        if (!prefill.amount) {
+          setValue('amount', String(remainingDue || ''), { shouldValidate: true });
+        }
+      } catch {
+        if (cancelled) return;
+        setApiError('Failed to load invoice details for payment');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [api, lockedFromSale, prefill.saleId, prefill.retailerId, prefill.amount, reset, setValue]);
+
   // Fetch unpaid/partially-paid sales for the selected retailer
   useEffect(() => {
+    if (lockedFromSale) {
+      return;
+    }
+
     if (!selectedRetailer) { setSales([]); return; }
     api.get(API_ENDPOINTS.SALES_LIST, {
       params: { retailer: selectedRetailer, limit: 50 },
@@ -59,10 +125,26 @@ export default function PaymentCreate() {
       });
       setSales(unpaid.length > 0 ? unpaid : data); // fallback to all if none unpaid
     }).catch(() => setSales([]));
-  }, [selectedRetailer]);
+  }, [lockedFromSale, selectedRetailer]);
+
+  useEffect(() => {
+    if (lockedFromSale && lockedSale) {
+      setValue('retailer', lockedSale.retailerId);
+      setValue('sale', lockedSale.saleId);
+    }
+  }, [lockedFromSale, lockedSale, setValue]);
 
   // Find selected sale to show remaining due
-  const currentSale = sales.find((s) => String(s.id) === String(selectedSale));
+  const currentSale = lockedSale
+    ? {
+        id: lockedSale.saleId,
+        invoice_number: lockedSale.invoiceNumber,
+        total_amount: lockedSale.totalAmount,
+        paid_amount: lockedSale.paidAmount,
+        remaining_due: lockedSale.remainingDue,
+        retailer: { id: lockedSale.retailerId, shop_name: lockedSale.retailerName },
+      }
+    : sales.find((s) => String(s.id) === String(selectedSale));
   const saleTotal = parseFloat(currentSale?.total_amount || currentSale?.total || 0);
   const salePaid = parseFloat(currentSale?.paid_amount || currentSale?.amount_paid || 0);
   const saleRemaining = saleTotal - salePaid;
@@ -142,18 +224,25 @@ export default function PaymentCreate() {
             <label htmlFor="payment-retailer" className="block text-sm font-medium text-slate-700 mb-1.5">
               Customer <span className="text-red-500">*</span>
             </label>
-            <select
-              id="payment-retailer"
-              {...register('retailer', { required: 'Customer is required' })}
-              className={`w-full px-3 py-2.5 bg-slate-50 border rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer ${errors.retailer ? 'border-red-400' : 'border-slate-200'}`}
-            >
-              <option value="">Select customer...</option>
-              {retailers.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.shop_name || r.name} {r.contact_person ? `(${r.contact_person})` : ''}
-                </option>
-              ))}
-            </select>
+            <input type="hidden" {...register('retailer', { required: 'Customer is required' })} />
+            {lockedFromSale && lockedSale ? (
+              <div className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-900">
+                {lockedSale.retailerName}
+              </div>
+            ) : (
+              <select
+                id="payment-retailer"
+                {...register('retailer', { required: 'Customer is required' })}
+                className={`w-full px-3 py-2.5 bg-slate-50 border rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer ${errors.retailer ? 'border-red-400' : 'border-slate-200'}`}
+              >
+                <option value="">Select customer...</option>
+                {retailers.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.shop_name || r.name} {r.contact_person ? `(${r.contact_person})` : ''}
+                  </option>
+                ))}
+              </select>
+            )}
             {errors.retailer && <p className="mt-1.5 text-xs text-red-600">{errors.retailer.message}</p>}
           </div>
 
@@ -162,24 +251,31 @@ export default function PaymentCreate() {
             <label htmlFor="payment-sale" className="block text-sm font-medium text-slate-700 mb-1.5">
               Invoice <span className="text-red-500">*</span>
             </label>
-            <select
-              id="payment-sale"
-              {...register('sale', { required: 'Invoice is required — payments must be linked to an invoice' })}
-              disabled={!selectedRetailer}
-              className={`w-full px-3 py-2.5 bg-slate-50 border rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${errors.sale ? 'border-red-400' : 'border-slate-200'}`}
-            >
-              <option value="">Select invoice...</option>
-              {sales.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.invoice_number || `#${s.id}`} — Total: {fmt(s.total_amount || s.total)} ({(s.payment_status || 'unpaid').replace(/_/g, ' ')})
-                </option>
-              ))}
-            </select>
+            <input type="hidden" {...register('sale', { required: 'Invoice is required — payments must be linked to an invoice' })} />
+            {lockedFromSale && lockedSale ? (
+              <div className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-sm text-slate-900">
+                {lockedSale.invoiceNumber}
+              </div>
+            ) : (
+              <select
+                id="payment-sale"
+                {...register('sale', { required: 'Invoice is required — payments must be linked to an invoice' })}
+                disabled={!selectedRetailer}
+                className={`w-full px-3 py-2.5 bg-slate-50 border rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 focus:bg-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${errors.sale ? 'border-red-400' : 'border-slate-200'}`}
+              >
+                <option value="">Select invoice...</option>
+                {sales.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.invoice_number || `#${s.id}`} — Total: {fmt(s.total_amount || s.total)} ({(s.payment_status || 'unpaid').replace(/_/g, ' ')})
+                  </option>
+                ))}
+              </select>
+            )}
             {errors.sale && <p className="mt-1.5 text-xs text-red-600">{errors.sale.message}</p>}
-            {!selectedRetailer && (
+            {!lockedFromSale && !selectedRetailer && (
               <p className="mt-1.5 text-xs text-slate-400">Select a customer first to see their invoices</p>
             )}
-            {selectedRetailer && sales.length === 0 && (
+            {!lockedFromSale && selectedRetailer && sales.length === 0 && (
               <p className="mt-1.5 text-xs text-slate-400">No invoices found for this customer</p>
             )}
           </div>
@@ -220,6 +316,7 @@ export default function PaymentCreate() {
                   min="0.01"
                   step="any"
                   placeholder="0.00"
+                  defaultValue={prefill.amount ? String(prefill.amount) : ''}
                   {...register('amount', {
                     required: 'Amount is required',
                     validate: (v) => parseFloat(v) > 0 || 'Amount must be greater than 0',
