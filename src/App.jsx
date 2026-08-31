@@ -8,6 +8,8 @@ import Dashboard from './pages/Dashboard';
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
 import SaleList from './pages/Sales/SaleList';
 import SaleCreate from './pages/Sales/SaleCreate';
+import SaleEdit from './pages/Sales/SaleEdit';
+import SaleDetail from './pages/Sales/SaleDetail';
 
 function Placeholder({ title }) {
   return (
@@ -58,7 +60,8 @@ function App() {
             <Route path="/customers" element={<Placeholder title="Customers" />} />
             <Route path="/sales" element={<SaleList />} />
             <Route path="/sales/create" element={<SaleCreate />} />
-            <Route path="/sales/:id" element={<Placeholder title="Sale Detail" />} />
+            <Route path="/sales/:id/edit" element={<SaleEdit />} />
+            <Route path="/sales/:id" element={<SaleDetail />} />
             <Route path="/payments" element={<Placeholder title="Payments" />} />
             <Route path="/reports" element={<Placeholder title="Reports" />} />
           </Route>

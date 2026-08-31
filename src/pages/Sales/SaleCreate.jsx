@@ -16,9 +16,11 @@ export default function SaleCreate() {
   const api = useAxios();
   const navigate = useNavigate();
 
+  const today = new Date().toISOString().split('T')[0];
+
   // Form
   const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm({
-    defaultValues: { retailer_id: '', notes: '' },
+    defaultValues: { retailer_id: '', notes: '', invoice_date: today },
   });
 
   // State
@@ -92,6 +94,7 @@ export default function SaleCreate() {
     try {
       const payload = {
         retailer: parseInt(data.retailer_id),
+        invoice_date: data.invoice_date,
         notes: data.notes || '',
         items: validItems.map((i) => ({
           product: parseInt(i.product_id),
@@ -178,7 +181,7 @@ export default function SaleCreate() {
         {/* ── Customer + Notes card ── */}
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-5 mb-5">
           <h2 className="text-sm font-semibold text-slate-900 mb-4">Invoice Details</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Customer */}
             <div>
               <label htmlFor="retailer_id" className="block text-sm font-medium text-slate-700 mb-1.5">
@@ -201,6 +204,33 @@ export default function SaleCreate() {
               )}
             </div>
 
+            {/* Invoice Date */}
+            <div>
+              <label
+                htmlFor="invoice_date"
+                className="block text-sm font-medium text-slate-700 mb-1.5"
+              >
+                Invoice Date <span className="text-red-500">*</span>
+              </label>
+
+              <input
+                id="invoice_date"
+                type="date"
+                {...register('invoice_date', {
+                  required: 'Invoice date is required',
+                })}
+                className={`w-full px-3 py-2.5 bg-slate-50 border rounded-lg text-sm text-slate-900
+                  focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500
+                  focus:bg-white transition-all
+                  ${errors.invoice_date ? 'border-red-400' : 'border-slate-200'}`}
+              />
+
+              {errors.invoice_date && (
+                <p className="mt-1.5 text-xs text-red-600">
+                  {errors.invoice_date.message}
+                </p>
+              )}
+            </div>
             {/* Notes */}
             <div>
               <label htmlFor="sale-notes" className="block text-sm font-medium text-slate-700 mb-1.5">
