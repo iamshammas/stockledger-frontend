@@ -10,6 +10,9 @@ import SaleList from './pages/Sales/SaleList';
 import SaleCreate from './pages/Sales/SaleCreate';
 import SaleEdit from './pages/Sales/SaleEdit';
 import SaleDetail from './pages/Sales/SaleDetail';
+import PaymentList from './pages/Payments/PaymentList';
+import PaymentCreate from './pages/Payments/PaymentCreate';
+import PaymentDetail from './pages/Payments/PaymentDetail';
 
 function Placeholder({ title }) {
   return (
@@ -62,7 +65,9 @@ function App() {
             <Route path="/sales/create" element={<SaleCreate />} />
             <Route path="/sales/:id/edit" element={<SaleEdit />} />
             <Route path="/sales/:id" element={<SaleDetail />} />
-            <Route path="/payments" element={<Placeholder title="Payments" />} />
+            <Route path="/payments" element={<PaymentList />} />
+            <Route path="/payments/create" element={<PaymentCreate />} />
+            <Route path="/payments/:id" element={<PaymentDetail />} />
             <Route path="/reports" element={<Placeholder title="Reports" />} />
           </Route>
 
