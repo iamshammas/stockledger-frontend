@@ -14,6 +14,7 @@ import PaymentList from './pages/Payments/PaymentList';
 import PaymentCreate from './pages/Payments/PaymentCreate';
 import PaymentDetail from './pages/Payments/PaymentDetail';
 import CustomerList from './pages/Customers/CustomerList';
+import CustomerCreate from './pages/Customers/CustomerCreate';
 
 function Placeholder({ title }) {
   return (
@@ -62,6 +63,8 @@ function App() {
             <Route path="/catalog" element={<Placeholder title="Catalog" />} />
             <Route path="/inventory" element={<Placeholder title="Inventory" />} />
             <Route path="/customers" element={<CustomerList />} />
+            <Route path="/customers/create" element={<CustomerCreate />} />
+            <Route path="/customers/:id" element={<Placeholder title="Customer Detail" />} />
             <Route path="/sales" element={<SaleList />} />
             <Route path="/sales/create" element={<SaleCreate />} />
             <Route path="/sales/:id/edit" element={<SaleEdit />} />

@@ -325,7 +325,14 @@ export default function SaleDetail() {
           {/* Record payment button */}
           {remainingDue > 0 && (
             <button
-              onClick={() => navigate('/payments/create', { state: { saleId: id, retailerId: customer.id || sale.retailer?.id || sale.retailer_id || sale.retailer } })}
+              onClick={() => navigate('/payments/create', { state: {
+                saleId: id,
+                retailerId: customer.id || sale.retailer?.id || sale.retailer_id || sale.retailer,
+                customerName: customer.shop_name || customer.name || sale.retailer_name || '—',
+                invoiceNumber: sale.invoice_number || `#${sale.id}`,
+                remainingDue: remainingDue,
+                fromSale: true,
+              } })}
               className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white text-sm font-semibold rounded-lg shadow-md shadow-emerald-500/25 transition-all cursor-pointer"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
