@@ -221,7 +221,7 @@ export default function Dashboard() {
                         className="hover:bg-slate-50 cursor-pointer transition-colors"
                       >
                         <td className="px-4 py-3 font-medium text-slate-900">{s.invoice_number || `#${s.id}`}</td>
-                        <td className="px-4 py-3 text-slate-600">{s.retailer_name || s.retailer?.name || '—'}</td>
+                        <td className="px-4 py-3 text-slate-600">{s.retailer || s.retailer?.name || '—'}</td>
                         <td className="px-4 py-3 text-slate-500">{fmtDate(s.date || s.created_at)}</td>
                         <td className="px-4 py-3 text-right font-medium text-slate-900">{fmt(s.total_amount || s.total)}</td>
                         <td className="px-4 py-3"><StatusBadge status={s.payment_status || s.status} /></td>

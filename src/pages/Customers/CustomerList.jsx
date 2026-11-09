@@ -182,8 +182,8 @@ export default function CustomerList() {
                 </tr>
               ) : (
                 customers.map((c) => {
-                  const name = c.shop_name || c.name || '—';
-                  const outstanding = parseFloat(c.outstanding_balance || c.balance_due || c.credit_balance || 0);
+                  const name = c.shop_name || '—';
+                  const credit_balance = parseFloat(c.credit_balance || "ISSUE IS THERE");
 
                   return (
                     <tr
@@ -202,19 +202,39 @@ export default function CustomerList() {
                         </div>
                       </td>
                       <td className="px-4 py-3.5 text-slate-600">
-                        {c.contact_person || '—'}
+                        {c.retailer_name || '—'}
                       </td>
                       <td className="px-4 py-3.5 text-slate-600">
-                        {c.phone || c.mobile || '—'}
+                        {c.phone || '—'}
                       </td>
                       <td className="px-4 py-3.5 text-slate-500 text-xs max-w-[200px] truncate">
-                        {c.address || c.city || '—'}
+                        {c.address || '—'}
                       </td>
-                      <td className="px-4 py-3.5 text-right">
-                        {outstanding > 0 ? (
-                          <span className="text-red-600 font-semibold">{fmt(outstanding)}</span>
+                      {/* COMMENTED IT BCZ OF NO NEED */}
+                      {/* <td className="px-4 py-3.5 text-right">
+                        {credit_balance > 0 ? (
+                          <span className="text-red-600 font-semibold">{fmt(credit_balance)}</span>
                         ) : (
                           <span className="text-emerald-600 font-medium">Settled</span>
+                        )}
+                      </td> */}
+                      <td className="px-4 py-3.5 text-right">
+                        {!Number.isFinite(credit_balance) ? (
+                          <span className="text-orange-600 font-semibold">
+                            Invalid Balance
+                          </span>
+                        ) : credit_balance === 0 ? (
+                          <span className="text-emerald-600 font-medium">
+                            Settled
+                          </span>
+                        ) : credit_balance > 0 ? (
+                          <span className="text-red-600 font-semibold">
+                            {fmt(credit_balance)}
+                          </span>
+                        ) : (
+                          <span className="text-emerald-600 font-semibold">
+                            {fmt(credit_balance)}
+                          </span>
                         )}
                       </td>
                     </tr>

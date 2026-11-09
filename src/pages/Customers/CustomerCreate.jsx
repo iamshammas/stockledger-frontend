@@ -15,33 +15,24 @@ export default function CustomerCreate() {
     formState: { errors, isSubmitting }
   } = useForm({
     defaultValues: {
+      retailer_name: '',
       shop_name: '',
-      contact_person: '',
       phone: '',
       email: '',
-      address: '',
-      city: '',
-      state: '',
-      pincode: '',
-      status: 'Active'
+      address: ''
     }
   });
 
   const onSubmit = async (data) => {
     setApiError('');
     try {
-      // Map status to what the backend likely expects if it's a boolean, 
-      // but we'll send it as is or map to is_active if needed.
-      // Often status is a choice field like 'ACTIVE' or 'INACTIVE'
-      // or boolean `is_active`. We'll send what was requested in the prompt.
-      const payload = { ...data };
-      
-      const res = await api.post(API_ENDPOINTS.RETAILERS_LIST, payload);
+      const res = await api.post(API_ENDPOINTS.RETAILERS_LIST, data);
       navigate(`/customers/${res.data.id}`);
     } catch (err) {
       setApiError(
         err.response?.data?.detail || 
         err.response?.data?.non_field_errors?.[0] || 
+        err.response?.data?.retailer_name?.[0] ||
         err.response?.data?.shop_name?.[0] ||
         err.response?.data?.phone?.[0] ||
         'Failed to create customer. Please check your inputs.'
@@ -82,36 +73,33 @@ export default function CustomerCreate() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Shop Name */}
+            {/* Retailer Name */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Shop / Business Name <span className="text-red-500">*</span>
+                Retailer Name <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500 ${
-                  errors.shop_name ? 'border-red-300 bg-red-50' : 'border-slate-300'
+                  errors.retailer_name ? 'border-red-300 bg-red-50' : 'border-slate-300'
                 }`}
-                placeholder="e.g. Acme Electronics"
-                {...register('shop_name', { required: 'Shop name is required' })}
+                placeholder="e.g. Acme Retailers"
+                {...register('retailer_name', { required: 'Retailer name is required' })}
               />
-              {errors.shop_name && <p className="mt-1 text-xs text-red-500">{errors.shop_name.message}</p>}
+              {errors.retailer_name && <p className="mt-1 text-xs text-red-500">{errors.retailer_name.message}</p>}
             </div>
 
-            {/* Contact Person */}
+            {/* Shop Name */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Contact Person <span className="text-red-500">*</span>
+                Shop / Business Name
               </label>
               <input
                 type="text"
-                className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500 ${
-                  errors.contact_person ? 'border-red-300 bg-red-50' : 'border-slate-300'
-                }`}
-                placeholder="Name of owner/manager"
-                {...register('contact_person', { required: 'Contact person is required' })}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500"
+                placeholder="e.g. Acme Electronics"
+                {...register('shop_name')}
               />
-              {errors.contact_person && <p className="mt-1 text-xs text-red-500">{errors.contact_person.message}</p>}
             </div>
 
             {/* Phone */}
@@ -149,20 +137,6 @@ export default function CustomerCreate() {
               {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>}
             </div>
 
-            {/* Status */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Status
-              </label>
-              <select
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500"
-                {...register('status')}
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
-
             {/* Address */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -173,45 +147,6 @@ export default function CustomerCreate() {
                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500 resize-none"
                 placeholder="Complete address including building, street, area..."
                 {...register('address')}
-              />
-            </div>
-
-            {/* City */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                City
-              </label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500"
-                placeholder="e.g. Mumbai"
-                {...register('city')}
-              />
-            </div>
-
-            {/* State */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                State
-              </label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500"
-                placeholder="e.g. Maharashtra"
-                {...register('state')}
-              />
-            </div>
-
-            {/* Pincode */}
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Pincode / ZIP
-              </label>
-              <input
-                type="text"
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500"
-                placeholder="e.g. 400001"
-                {...register('pincode')}
               />
             </div>
           </div>
