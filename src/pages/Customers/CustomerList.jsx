@@ -108,7 +108,7 @@ export default function CustomerList() {
           <input
             id="customer-search"
             type="text"
-            placeholder="Search by shop name, contact person, or phone..."
+            placeholder="Search by customer name, shop, or phone..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500 focus:bg-white transition-all"
@@ -142,8 +142,8 @@ export default function CustomerList() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                <th className="px-4 py-3">Shop / Customer</th>
-                <th className="px-4 py-3">Contact Person</th>
+                <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Shop / Business</th>
                 <th className="px-4 py-3">Phone</th>
                 <th className="px-4 py-3">Address</th>
                 <th className="px-4 py-3 text-right">Outstanding</th>
@@ -182,13 +182,14 @@ export default function CustomerList() {
                 </tr>
               ) : (
                 customers.map((c) => {
-                  const name = c.shop_name || '—';
-                  const credit_balance = parseFloat(c.credit_balance || "ISSUE IS THERE");
+                  const name = c.retailer_name || c.shop_name || '—';
+                  const shop = c.shop_name || '';
+                  const credit_balance = parseFloat(c.credit_balance ?? 0);
 
                   return (
                     <tr
-                      key={c.id}
-                      onClick={() => navigate(`/customers/${c.id}`)}
+                      key={c.id ?? c.phone}
+                      onClick={() => c.id && navigate(`/customers/${c.id}`)}
                       className="hover:bg-slate-50/80 cursor-pointer transition-colors group"
                     >
                       <td className="px-4 py-3.5">
@@ -196,13 +197,18 @@ export default function CustomerList() {
                           <div className="w-9 h-9 bg-orange-50 rounded-full flex items-center justify-center text-orange-600 font-bold text-sm shrink-0">
                             {name.charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-medium text-slate-900 group-hover:text-orange-700 transition-colors">
-                            {name}
-                          </span>
+                          <div className="min-w-0">
+                            <p className="font-medium text-slate-900 group-hover:text-orange-700 transition-colors truncate">
+                              {name}
+                            </p>
+                            {shop && shop !== name && (
+                              <p className="text-xs text-slate-400 truncate">{shop}</p>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-4 py-3.5 text-slate-600">
-                        {c.retailer_name || '—'}
+                        {c.shop_name || '—'}
                       </td>
                       <td className="px-4 py-3.5 text-slate-600">
                         {c.phone || '—'}
@@ -219,11 +225,7 @@ export default function CustomerList() {
                         )}
                       </td> */}
                       <td className="px-4 py-3.5 text-right">
-                        {!Number.isFinite(credit_balance) ? (
-                          <span className="text-orange-600 font-semibold">
-                            Invalid Balance
-                          </span>
-                        ) : credit_balance === 0 ? (
+                        {credit_balance === 0 ? (
                           <span className="text-emerald-600 font-medium">
                             Settled
                           </span>
