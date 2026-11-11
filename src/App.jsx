@@ -17,6 +17,8 @@ import CustomerList from './pages/Customers/CustomerList';
 import CustomerCreate from './pages/Customers/CustomerCreate';
 import CustomerDetail from './pages/Customers/CustomerDetail';
 import CustomerEdit from './pages/Customers/CustomerEdit';
+import PurchaseList from './pages/Inventory/PurchaseList';
+import PurchaseCreate from './pages/Inventory/PurchaseCreate';
 
 function Placeholder({ title }) {
   return (
@@ -63,7 +65,8 @@ function App() {
 
             {/* Seller modules */}
             <Route path="/catalog" element={<Placeholder title="Catalog" />} />
-            <Route path="/inventory" element={<Placeholder title="Inventory" />} />
+            <Route path="/inventory" element={<PurchaseList />} />
+            <Route path="/inventory/create" element={<PurchaseCreate />} />
             <Route path="/customers" element={<CustomerList />} />
             <Route path="/customers/create" element={<CustomerCreate />} />
             <Route path="/customers/:id" element={<CustomerDetail />} />
