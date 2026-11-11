@@ -19,6 +19,7 @@ import CustomerDetail from './pages/Customers/CustomerDetail';
 import CustomerEdit from './pages/Customers/CustomerEdit';
 import PurchaseList from './pages/Inventory/PurchaseList';
 import PurchaseCreate from './pages/Inventory/PurchaseCreate';
+import ProductList from './pages/Catalog/ProductList';
 
 function Placeholder({ title }) {
   return (
@@ -64,7 +65,7 @@ function App() {
             <Route path="/dashboard/admin" element={<SuperAdminDashboard />} />
 
             {/* Seller modules */}
-            <Route path="/catalog" element={<Placeholder title="Catalog" />} />
+            <Route path="/catalog" element={<ProductList />} />
             <Route path="/inventory" element={<PurchaseList />} />
             <Route path="/inventory/create" element={<PurchaseCreate />} />
             <Route path="/customers" element={<CustomerList />} />
