@@ -1,24 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
 import { useAxios } from '../../hooks/useAxios';
 import { API_ENDPOINTS } from '../../config/api';
+import LookupFormModal from '../../components/catalog/LookupFormModal';
+import ProductFormModal from '../../components/catalog/ProductFormModal';
+import { QUICK_ADD_META, errorMessage, fieldBase } from '../../components/catalog/lookups';
 
 // The backend paginates every list endpoint at 10 rows per page.
 const SERVER_PAGE_SIZE = 10;
 const ROWS_PER_PAGE = 20;
-
-const PRODUCT_FIELDS = [
-  'name',
-  'category',
-  'brand',
-  'unit',
-  'sku',
-  'current_selling_price',
-  'low_stock_threshold',
-];
-
-const fieldBase =
-  'w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500';
 
 const fmtCurrency = (value) => {
   const num = parseFloat(value);
@@ -38,23 +27,6 @@ const fmtQty = (value) => {
   if (Number.isNaN(num)) return '—';
   return num.toLocaleString('en-IN', { maximumFractionDigits: 3 });
 };
-
-const errorMessage = (value) => {
-  if (!value) return '';
-  if (Array.isArray(value)) return String(value[0]);
-  if (typeof value === 'object') return 'Invalid value';
-  return String(value);
-};
-
-const amountRule = (label) => ({
-  validate: (value) => {
-    if (value === '' || value === null || value === undefined) return true;
-    const num = Number(value);
-    if (Number.isNaN(num)) return `Enter a valid ${label}`;
-    if (num < 0) return `${label} cannot be negative`;
-    return true;
-  },
-});
 
 /**
  * Fetches every row of a DRF list endpoint.
@@ -90,491 +62,6 @@ function SkeletonRow() {
         </td>
       ))}
     </tr>
-  );
-}
-
-// ── Quick-add for category / brand / unit ──
-const QUICK_ADD_META = {
-  category: {
-    title: 'Add new category',
-    endpoint: API_ENDPOINTS.CATEGORIES_LIST,
-    placeholder: 'e.g. Electronics',
-    hasShortCode: false,
-  },
-  brand: {
-    title: 'Add new brand',
-    endpoint: API_ENDPOINTS.BRANDS_LIST,
-    placeholder: 'e.g. Samsung',
-    hasShortCode: false,
-  },
-  unit: {
-    title: 'Add new unit',
-    endpoint: API_ENDPOINTS.UNITS_LIST,
-    placeholder: 'e.g. Pieces',
-    hasShortCode: true,
-  },
-};
-
-function QuickAddModal({ api, type, onClose, onCreated }) {
-  const meta = QUICK_ADD_META[type];
-  const [serverError, setServerError] = useState('');
-
-  const {
-    register,
-    handleSubmit,
-    setError,
-    formState: { errors, isSubmitting },
-  } = useForm({ defaultValues: { name: '', short_code: '' } });
-
-  const submit = async (data) => {
-    setServerError('');
-
-    const payload = { name: data.name.trim() };
-    if (meta.hasShortCode && data.short_code.trim()) {
-      payload.short_code = data.short_code.trim();
-    }
-
-    try {
-      const res = await api.post(meta.endpoint, payload);
-      onCreated(res.data);
-    } catch (err) {
-      const res = err.response;
-
-      if (!res) {
-        setServerError('Unable to connect to the server. Please try again.');
-        return;
-      }
-      if (res.status === 401) return; // interceptor handles logout
-
-      if (res.status === 400 && res.data && typeof res.data === 'object') {
-        ['name', 'short_code'].forEach((field) => {
-          if (res.data[field]) {
-            setError(field, { type: 'server', message: errorMessage(res.data[field]) });
-          }
-        });
-
-        const banner =
-          errorMessage(res.data.detail) || errorMessage(res.data.non_field_errors);
-        if (banner) setServerError(banner);
-        return;
-      }
-
-      setServerError(errorMessage(res.data?.detail) || `Failed to add ${type}.`);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50"
-      onClick={onClose}
-    >
-      <div
-        className="bg-white rounded-xl shadow-xl w-full max-w-md"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="quick-add-title"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
-          <div>
-            <h2 id="quick-add-title" className="text-base font-semibold text-slate-900">
-              {meta.title}
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Saved to your catalog and selected for this product.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-            aria-label="Close"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit(submit)} className="px-6 py-5 space-y-4" noValidate>
-          {serverError && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg" role="alert">
-              {serverError}
-            </div>
-          )}
-
-          <div>
-            <label htmlFor="quick-add-name" className="block text-sm font-medium text-slate-700 mb-1">
-              Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="quick-add-name"
-              type="text"
-              autoFocus
-              className={`${fieldBase} ${errors.name ? 'border-red-300 bg-red-50' : 'border-slate-300'}`}
-              placeholder={meta.placeholder}
-              {...register('name', { required: 'Name is required' })}
-            />
-            {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
-          </div>
-
-          {meta.hasShortCode && (
-            <div>
-              <label htmlFor="quick-add-short-code" className="block text-sm font-medium text-slate-700 mb-1">
-                Short code
-              </label>
-              <input
-                id="quick-add-short-code"
-                type="text"
-                maxLength={10}
-                className={`${fieldBase} ${errors.short_code ? 'border-red-300 bg-red-50' : 'border-slate-300'}`}
-                placeholder="e.g. pcs"
-                {...register('short_code')}
-              />
-              {errors.short_code && (
-                <p className="mt-1 text-xs text-red-500">{errors.short_code.message}</p>
-              )}
-            </div>
-          )}
-
-          <div className="pt-2 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-lg shadow-md shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
-            >
-              {isSubmitting ? 'Adding...' : 'Add'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ── Create / edit product ──
-function ProductFormModal({
-  api,
-  mode,
-  product,
-  categories,
-  brands,
-  units,
-  onClose,
-  onSaved,
-  onLookupCreated,
-}) {
-  const isEdit = mode === 'edit';
-  const [serverError, setServerError] = useState('');
-  const [quickAdd, setQuickAdd] = useState(null);
-
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    setError,
-    formState: { errors, isSubmitting },
-  } = useForm({
-    defaultValues: {
-      name: product?.name ?? '',
-      category: product?.category ? String(product.category) : '',
-      brand: product?.brand ? String(product.brand) : '',
-      unit: product?.unit ? String(product.unit) : '',
-      sku: product?.sku ?? '',
-      current_selling_price: product?.current_selling_price ?? '',
-      low_stock_threshold: product?.low_stock_threshold ?? '',
-    },
-  });
-
-  const submit = async (data) => {
-    setServerError('');
-
-    const payload = {
-      name: data.name.trim(),
-      category: Number(data.category),
-      unit: Number(data.unit),
-      brand: data.brand ? Number(data.brand) : null,
-      sku: data.sku ? data.sku.trim() : '',
-      current_selling_price: data.current_selling_price === '' ? null : data.current_selling_price,
-      low_stock_threshold: data.low_stock_threshold === '' ? null : data.low_stock_threshold,
-    };
-
-    try {
-      const res = isEdit
-        ? await api.patch(API_ENDPOINTS.PRODUCT_DETAIL(product.id), payload)
-        : await api.post(API_ENDPOINTS.PRODUCTS_LIST, payload);
-
-      onSaved(res.data, isEdit);
-    } catch (err) {
-      const res = err.response;
-
-      if (!res) {
-        setServerError('Unable to connect to the server. Please try again.');
-        return;
-      }
-      if (res.status === 401) return; // interceptor handles logout
-
-      if (res.status === 400 && res.data && typeof res.data === 'object') {
-        let mapped = false;
-        PRODUCT_FIELDS.forEach((field) => {
-          if (res.data[field]) {
-            mapped = true;
-            setError(field, { type: 'server', message: errorMessage(res.data[field]) });
-          }
-        });
-
-        const banner =
-          errorMessage(res.data.detail) || errorMessage(res.data.non_field_errors);
-        if (banner) setServerError(banner);
-        else if (!mapped) setServerError('Please check the highlighted fields.');
-        return;
-      }
-
-      setServerError(
-        errorMessage(res.data?.detail) || 'Failed to save product. Please try again.'
-      );
-    }
-  };
-
-  const handleQuickAddCreated = (item) => {
-    onLookupCreated(quickAdd, item);
-    setValue(quickAdd, String(item.id), { shouldValidate: true, shouldDirty: true });
-    setQuickAdd(null);
-  };
-
-  const quickAddButton = (type, label) => (
-    <button
-      type="button"
-      onClick={() => setQuickAdd(type)}
-      className="text-xs font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
-    >
-      + {label}
-    </button>
-  );
-
-  return (
-    <>
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50"
-        onClick={onClose}
-      >
-        <div
-          className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="product-modal-title"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between gap-4">
-            <div>
-              <h2 id="product-modal-title" className="text-base font-semibold text-slate-900">
-                {isEdit ? 'Edit product' : 'Add new product'}
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {isEdit
-                  ? 'Update the catalog details for this product.'
-                  : 'Create a product so it can be purchased and sold.'}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-              aria-label="Close"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit(submit)} className="px-6 py-5 space-y-5" noValidate>
-            {serverError && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg" role="alert">
-                {serverError}
-              </div>
-            )}
-
-            <div>
-              <label htmlFor="product-name" className="block text-sm font-medium text-slate-700 mb-1">
-                Product name <span className="text-red-500">*</span>
-              </label>
-              <input
-                id="product-name"
-                type="text"
-                autoFocus
-                className={`${fieldBase} ${errors.name ? 'border-red-300 bg-red-50' : 'border-slate-300'}`}
-                placeholder="e.g. LED Bulb 9W"
-                {...register('name', { required: 'Product name is required' })}
-              />
-              {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label htmlFor="product-category" className="block text-sm font-medium text-slate-700">
-                    Category <span className="text-red-500">*</span>
-                  </label>
-                  {quickAddButton('category', 'New')}
-                </div>
-                <select
-                  id="product-category"
-                  className={`${fieldBase} ${errors.category ? 'border-red-300 bg-red-50' : 'border-slate-300'}`}
-                  {...register('category', { required: 'Category is required' })}
-                >
-                  <option value="">Select category</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.category && (
-                  <p className="mt-1 text-xs text-red-500">{errors.category.message}</p>
-                )}
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label htmlFor="product-brand" className="block text-sm font-medium text-slate-700">
-                    Brand
-                  </label>
-                  {quickAddButton('brand', 'New')}
-                </div>
-                <select
-                  id="product-brand"
-                  className={`${fieldBase} ${errors.brand ? 'border-red-300 bg-red-50' : 'border-slate-300'}`}
-                  {...register('brand')}
-                >
-                  <option value="">No brand</option>
-                  {brands.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.brand && (
-                  <p className="mt-1 text-xs text-red-500">{errors.brand.message}</p>
-                )}
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label htmlFor="product-unit" className="block text-sm font-medium text-slate-700">
-                    Unit <span className="text-red-500">*</span>
-                  </label>
-                  {quickAddButton('unit', 'New')}
-                </div>
-                <select
-                  id="product-unit"
-                  className={`${fieldBase} ${errors.unit ? 'border-red-300 bg-red-50' : 'border-slate-300'}`}
-                  {...register('unit', { required: 'Unit is required' })}
-                >
-                  <option value="">Select unit</option>
-                  {units.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.short_code ? `${u.name} (${u.short_code})` : u.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.unit && (
-                  <p className="mt-1 text-xs text-red-500">{errors.unit.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="product-sku" className="block text-sm font-medium text-slate-700 mb-1">
-                  SKU
-                </label>
-                <input
-                  id="product-sku"
-                  type="text"
-                  maxLength={64}
-                  className={`${fieldBase} ${errors.sku ? 'border-red-300 bg-red-50' : 'border-slate-300'}`}
-                  placeholder="e.g. BULB-9W-01"
-                  {...register('sku')}
-                />
-                {errors.sku && <p className="mt-1 text-xs text-red-500">{errors.sku.message}</p>}
-              </div>
-
-              <div>
-                <label htmlFor="product-price" className="block text-sm font-medium text-slate-700 mb-1">
-                  Selling price (₹)
-                </label>
-                <input
-                  id="product-price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className={`${fieldBase} ${errors.current_selling_price ? 'border-red-300 bg-red-50' : 'border-slate-300'}`}
-                  placeholder="0.00"
-                  {...register('current_selling_price', amountRule('selling price'))}
-                />
-                {errors.current_selling_price && (
-                  <p className="mt-1 text-xs text-red-500">{errors.current_selling_price.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="product-threshold" className="block text-sm font-medium text-slate-700 mb-1">
-                  Low stock threshold
-                </label>
-                <input
-                  id="product-threshold"
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  className={`${fieldBase} ${errors.low_stock_threshold ? 'border-red-300 bg-red-50' : 'border-slate-300'}`}
-                  placeholder="e.g. 10"
-                  {...register('low_stock_threshold', amountRule('threshold'))}
-                />
-                {errors.low_stock_threshold && (
-                  <p className="mt-1 text-xs text-red-500">{errors.low_stock_threshold.message}</p>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 rounded-lg shadow-md shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
-              >
-                {isSubmitting
-                  ? 'Saving...'
-                  : isEdit
-                    ? 'Save changes'
-                    : 'Create product'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      {quickAdd && (
-        <QuickAddModal
-          api={api}
-          type={quickAdd}
-          onClose={() => setQuickAdd(null)}
-          onCreated={handleQuickAddCreated}
-        />
-      )}
-    </>
   );
 }
 
@@ -667,6 +154,354 @@ function DeactivateModal({ api, product, onClose, onDeactivated }) {
   );
 }
 
+// ── Delete a lookup (blocked while products reference it) ──
+function LookupDeleteModal({ api, type, item, usedBy, onClose, onDeleted }) {
+  const meta = QUICK_ADD_META[type];
+  const [busy, setBusy] = useState(false);
+  const [serverError, setServerError] = useState('');
+  const blocked = usedBy > 0;
+
+  const confirm = async () => {
+    if (blocked) return;
+
+    setBusy(true);
+    setServerError('');
+
+    try {
+      await api.delete(`${meta.endpoint}${item.id}/`);
+      onDeleted(item.id);
+    } catch (err) {
+      const res = err.response;
+
+      if (!res) {
+        setServerError('Unable to connect to the server. Please try again.');
+        return;
+      }
+      if (res.status === 401) return; // interceptor handles logout
+      if (res.status === 403) {
+        setServerError(`You do not have permission to delete this ${meta.singular}.`);
+        return;
+      }
+
+      setServerError(
+        errorMessage(res.data?.detail) ||
+          `This ${meta.singular} could not be deleted. It may still be in use.`
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50"
+      onClick={busy ? undefined : onClose}
+    >
+      <div
+        className="bg-white rounded-xl shadow-xl w-full max-w-md"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="lookup-delete-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-5">
+          <div className="flex items-start gap-3">
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                blocked ? 'bg-amber-50' : 'bg-red-50'
+              }`}
+            >
+              <svg
+                className={`w-5 h-5 ${blocked ? 'text-amber-500' : 'text-red-500'}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.8}
+                stroke="currentColor"
+              >
+                {blocked ? (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                  />
+                ) : (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+                  />
+                )}
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <h2 id="lookup-delete-title" className="text-base font-semibold text-slate-900">
+                {blocked ? `Cannot delete ${meta.singular}` : `Delete ${meta.singular}`}
+              </h2>
+              {blocked ? (
+                <p className="text-sm text-slate-600 mt-1">
+                  <span className="font-medium text-slate-900">{item.name}</span> is used by{' '}
+                  {usedBy} product{usedBy !== 1 ? 's' : ''}. Reassign or delete those products
+                  before removing this {meta.singular}.
+                </p>
+              ) : (
+                <p className="text-sm text-slate-600 mt-1">
+                  <span className="font-medium text-slate-900">{item.name}</span> will be
+                  permanently deleted. This cannot be undone.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {serverError && (
+            <div
+              className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg"
+              role="alert"
+            >
+              {serverError}
+            </div>
+          )}
+
+          <div className="mt-5 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={busy}
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors cursor-pointer"
+            >
+              {blocked ? 'Close' : 'Cancel'}
+            </button>
+            {!blocked && (
+              <button
+                type="button"
+                onClick={confirm}
+                disabled={busy}
+                className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-lg shadow-md shadow-red-500/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+              >
+                {busy ? 'Deleting...' : 'Delete'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Manage one lookup type (categories / brands / units) ──
+function LookupManager({ api, type, rows, products, onSaved, onDeleted }) {
+  const meta = QUICK_ADD_META[type];
+  const [search, setSearch] = useState('');
+  const [formState, setFormState] = useState(null); // null | { item: row | null }
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
+  // How many products reference each lookup row, derived client-side.
+  const usageById = useMemo(() => {
+    const counts = new Map();
+    products.forEach((p) => {
+      const id = p[type];
+      if (id === null || id === undefined) return;
+      counts.set(id, (counts.get(id) || 0) + 1);
+    });
+    return counts;
+  }, [products, type]);
+
+  const visible = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const list = query
+      ? rows.filter((row) => (row.name || '').toLowerCase().includes(query))
+      : rows;
+    return [...list].sort((a, b) =>
+      (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })
+    );
+  }, [rows, search]);
+
+  const handleSaved = (item, isEdit) => {
+    onSaved(type, item, isEdit);
+    setFormState(null);
+  };
+
+  const handleDeleted = (id) => {
+    onDeleted(type, id);
+    setDeleteTarget(null);
+  };
+
+  const pluralLower = meta.plural.toLowerCase();
+
+  return (
+    <div>
+      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b border-slate-100">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">{meta.plural}</h2>
+            <p className="text-xs text-slate-500">
+              {rows.length} {pluralLower} · used across your products
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.6}
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                />
+              </svg>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={`Search ${pluralLower}...`}
+                className="w-full sm:w-56 pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 focus:bg-white transition-all"
+                aria-label={`Search ${pluralLower}`}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setFormState({ item: null })}
+              className="inline-flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white text-sm font-semibold rounded-lg shadow-md shadow-blue-500/25 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Add {meta.singular}
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                <th className="px-4 py-3">Name</th>
+                {meta.hasShortCode && <th className="px-4 py-3">Short code</th>}
+                <th className="px-4 py-3 text-right">Products</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {visible.length === 0 ? (
+                <tr>
+                  <td colSpan={meta.hasShortCode ? 4 : 3} className="px-4 py-16 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.4} stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-slate-600">
+                          {search ? `No ${pluralLower} match your search` : `No ${pluralLower} yet`}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {search
+                            ? 'Try a different search term'
+                            : `Add your first ${meta.singular} to organise your catalog`}
+                        </p>
+                      </div>
+                      {!search && (
+                        <button
+                          type="button"
+                          onClick={() => setFormState({ item: null })}
+                          className="text-sm font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
+                        >
+                          + Add {meta.singular}
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                visible.map((row) => {
+                  const usedBy = usageById.get(row.id) || 0;
+
+                  return (
+                    <tr key={row.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 font-bold text-sm shrink-0">
+                            {(row.name || '?').charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-medium text-slate-900">{row.name || '—'}</span>
+                        </div>
+                      </td>
+                      {meta.hasShortCode && (
+                        <td className="px-4 py-3.5 text-slate-600">{row.short_code || '—'}</td>
+                      )}
+                      <td className="px-4 py-3.5 text-right">
+                        {usedBy > 0 ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-full">
+                            {usedBy} product{usedBy !== 1 ? 's' : ''}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-400">Unused</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setFormState({ item: row })}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                            title={`Edit ${meta.singular}`}
+                            aria-label={`Edit ${row.name}`}
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(row)}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                            title={`Delete ${meta.singular}`}
+                            aria-label={`Delete ${row.name}`}
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                            </svg>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {formState && (
+        <LookupFormModal
+          api={api}
+          type={type}
+          item={formState.item}
+          onClose={() => setFormState(null)}
+          onSaved={handleSaved}
+        />
+      )}
+
+      {deleteTarget && (
+        <LookupDeleteModal
+          api={api}
+          type={type}
+          item={deleteTarget}
+          usedBy={usageById.get(deleteTarget.id) || 0}
+          onClose={() => setDeleteTarget(null)}
+          onDeleted={handleDeleted}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function ProductList() {
   const api = useAxios();
 
@@ -691,6 +526,7 @@ export default function ProductList() {
 
   const [modal, setModal] = useState(null); // { mode, product }
   const [deactivateTarget, setDeactivateTarget] = useState(null);
+  const [tab, setTab] = useState('products'); // products | category | brand | unit
 
   // Debounce search; any new query starts back at page 1
   useEffect(() => {
@@ -820,29 +656,98 @@ export default function ProductList() {
     setNotice('Product deactivated.');
   }, []);
 
+  const handleLookupSaved = useCallback((type, item, isEdit) => {
+    const apply = (prev) =>
+      isEdit ? prev.map((row) => (row.id === item.id ? item : row)) : [...prev, item];
+
+    if (type === 'category') setCategories(apply);
+    else if (type === 'brand') setBrands(apply);
+    else if (type === 'unit') setUnits(apply);
+
+    const meta = QUICK_ADD_META[type];
+    const label = meta.singular.charAt(0).toUpperCase() + meta.singular.slice(1);
+    setNotice(`${label} "${item.name}" ${isEdit ? 'updated' : 'created'}.`);
+  }, []);
+
+  const handleLookupDeleted = useCallback((type, id) => {
+    const meta = QUICK_ADD_META[type];
+    const label = meta.singular.charAt(0).toUpperCase() + meta.singular.slice(1);
+
+    if (type === 'category') {
+      setCategories((prev) => prev.filter((row) => row.id !== id));
+      setCategoryFilter((prev) => (prev === String(id) ? 'all' : prev));
+    } else if (type === 'brand') {
+      setBrands((prev) => prev.filter((row) => row.id !== id));
+      setBrandFilter((prev) => (prev === String(id) ? 'all' : prev));
+    } else if (type === 'unit') {
+      setUnits((prev) => prev.filter((row) => row.id !== id));
+    }
+
+    setNotice(`${label} deleted.`);
+  }, []);
+
+  const tabs = [
+    { key: 'products', label: 'Products', count: products.length },
+    { key: 'category', label: 'Categories', count: categories.length },
+    { key: 'brand', label: 'Brands', count: brands.length },
+    { key: 'unit', label: 'Units', count: units.length },
+  ];
+  const activeTab = tabs.find((t) => t.key === tab) ?? tabs[0];
+
   return (
     <div>
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Products</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Catalog</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            {visibleProducts.length} product{visibleProducts.length !== 1 ? 's' : ''}
-            {hasFilters && products.length !== visibleProducts.length
-              ? ` matching filters (of ${products.length})`
-              : ' in your catalog'}
+            {tab === 'products'
+              ? `${visibleProducts.length} product${visibleProducts.length !== 1 ? 's' : ''}${
+                  hasFilters && products.length !== visibleProducts.length
+                    ? ` matching filters (of ${products.length})`
+                    : ' in your catalog'
+                }`
+              : `${activeTab.count} ${activeTab.label.toLowerCase()}`}
           </p>
         </div>
-        <button
-          id="add-product-btn"
-          onClick={() => setModal({ mode: 'create', product: null })}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white text-sm font-semibold rounded-lg shadow-md shadow-blue-500/25 transition-all cursor-pointer"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Add Product
-        </button>
+        {tab === 'products' && (
+          <button
+            id="add-product-btn"
+            onClick={() => setModal({ mode: 'create', product: null })}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white text-sm font-semibold rounded-lg shadow-md shadow-blue-500/25 transition-all cursor-pointer"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Add Product
+          </button>
+        )}
+      </div>
+
+      {/* Section tabs */}
+      <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-100 rounded-xl mb-5 w-fit">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            aria-pressed={tab === t.key}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${
+              tab === t.key
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            {t.label}
+            <span
+              className={`text-[11px] px-1.5 py-0.5 rounded-full ${
+                tab === t.key ? 'bg-blue-50 text-blue-600' : 'bg-slate-200 text-slate-500'
+              }`}
+            >
+              {t.count}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Notice */}
@@ -867,270 +772,285 @@ export default function ProductList() {
         </div>
       )}
 
-      {/* Search + filters */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 mb-5 shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          <div className="relative md:col-span-2 xl:col-span-1">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-            </svg>
-            <input
-              id="product-search"
-              type="text"
-              placeholder="Search by name, SKU, category, brand..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 focus:bg-white transition-all"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                aria-label="Clear search"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+      {tab === 'products' && (
+        <>
+          {/* Search + filters */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 mb-5 shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              <div className="relative md:col-span-2 xl:col-span-1">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.6} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
                 </svg>
-              </button>
-            )}
+                <input
+                  id="product-search"
+                  type="text"
+                  placeholder="Search by name, SKU, category, brand..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 focus:bg-white transition-all"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    aria-label="Clear search"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              <select
+                id="product-category-filter"
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  setPage(1);
+                }}
+                className={`${fieldBase} border-slate-200 bg-slate-50 py-2.5`}
+                aria-label="Filter by category"
+              >
+                <option value="all">All categories</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                id="product-brand-filter"
+                value={brandFilter}
+                onChange={(e) => {
+                  setBrandFilter(e.target.value);
+                  setPage(1);
+                }}
+                className={`${fieldBase} border-slate-200 bg-slate-50 py-2.5`}
+                aria-label="Filter by brand"
+              >
+                <option value="all">All brands</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                id="product-sort"
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(e.target.value);
+                  setPage(1);
+                }}
+                className={`${fieldBase} border-slate-200 bg-slate-50 py-2.5`}
+                aria-label="Sort products"
+              >
+                <option value="name-asc">Name A–Z</option>
+                <option value="name-desc">Name Z–A</option>
+                <option value="price-asc">Price low → high</option>
+                <option value="price-desc">Price high → low</option>
+              </select>
+            </div>
           </div>
 
-          <select
-            id="product-category-filter"
-            value={categoryFilter}
-            onChange={(e) => {
-              setCategoryFilter(e.target.value);
-              setPage(1);
-            }}
-            className={`${fieldBase} border-slate-200 bg-slate-50 py-2.5`}
-            aria-label="Filter by category"
-          >
-            <option value="all">All categories</option>
-            {categories.map((c) => (
-              <option key={c.id} value={String(c.id)}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+          {/* Error */}
+          {error && (
+            <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">
+              <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              {error}
+            </div>
+          )}
 
-          <select
-            id="product-brand-filter"
-            value={brandFilter}
-            onChange={(e) => {
-              setBrandFilter(e.target.value);
-              setPage(1);
-            }}
-            className={`${fieldBase} border-slate-200 bg-slate-50 py-2.5`}
-            aria-label="Filter by brand"
-          >
-            <option value="all">All brands</option>
-            {brands.map((b) => (
-              <option key={b.id} value={String(b.id)}>
-                {b.name}
-              </option>
-            ))}
-          </select>
-
-          <select
-            id="product-sort"
-            value={sortBy}
-            onChange={(e) => {
-              setSortBy(e.target.value);
-              setPage(1);
-            }}
-            className={`${fieldBase} border-slate-200 bg-slate-50 py-2.5`}
-            aria-label="Sort products"
-          >
-            <option value="name-asc">Name A–Z</option>
-            <option value="name-desc">Name Z–A</option>
-            <option value="price-asc">Price low → high</option>
-            <option value="price-desc">Price high → low</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">
-          <svg className="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-          {error}
-        </div>
-      )}
-
-      {/* Table */}
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
-                <th className="px-4 py-3">Product</th>
-                <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3">Brand</th>
-                <th className="px-4 py-3">Unit</th>
-                <th className="px-4 py-3 text-right">Selling Price</th>
-                <th className="px-4 py-3 text-right">Low Stock</th>
-                <th className="px-4 py-3 text-right">Stock</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
-              ) : pageRows.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-4 py-16 text-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center">
-                        <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.4} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-slate-600">
-                          {hasFilters ? 'No products match your filters' : 'No products yet'}
-                        </p>
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          {hasFilters
-                            ? 'Try a different search term or clear the filters'
-                            : 'Add your first product to start building your catalog'}
-                        </p>
-                      </div>
-                      {!hasFilters && (
-                        <button
-                          type="button"
-                          onClick={() => setModal({ mode: 'create', product: null })}
-                          className="mt-1 text-sm font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
-                        >
-                          + Add Product
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                pageRows.map((p) => {
-                  const stock = stockById.get(p.id);
-                  const hasStock = stock !== undefined && stock !== null;
-                  const threshold = p.low_stock_threshold;
-                  const isLow =
-                    hasStock &&
-                    threshold !== null &&
-                    threshold !== undefined &&
-                    parseFloat(stock) <= parseFloat(threshold);
-                  const unit = unitMap.get(p.unit);
-
-                  return (
-                    <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 font-bold text-sm shrink-0">
-                            {(p.name || '?').charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-slate-900 truncate">{p.name || '—'}</p>
-                            <p className="text-xs text-slate-400 truncate">{p.sku || 'No SKU'}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-600">
-                        {categoryMap.get(p.category) || '—'}
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-600">
-                        {brandMap.get(p.brand) || '—'}
-                      </td>
-                      <td className="px-4 py-3.5 text-slate-600">
-                        {unit ? unit.short_code || unit.name : '—'}
-                      </td>
-                      <td className="px-4 py-3.5 text-right text-slate-700 font-medium whitespace-nowrap">
-                        {fmtCurrency(p.current_selling_price)}
-                      </td>
-                      <td className="px-4 py-3.5 text-right text-slate-500 whitespace-nowrap">
-                        {fmtQty(p.low_stock_threshold)}
-                      </td>
-                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                        {hasStock ? (
-                          <span className="inline-flex items-center gap-2">
-                            <span className={isLow ? 'text-red-600 font-semibold' : 'text-slate-700 font-medium'}>
-                              {fmtQty(stock)}
-                            </span>
-                            {isLow && (
-                              <span className="text-[10px] uppercase tracking-wide font-semibold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
-                                Low
-                              </span>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setModal({ mode: 'edit', product: p })}
-                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                            title="Edit product"
-                            aria-label={`Edit ${p.name}`}
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+          {/* Table */}
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">
+                    <th className="px-4 py-3">Product</th>
+                    <th className="px-4 py-3">Category</th>
+                    <th className="px-4 py-3">Brand</th>
+                    <th className="px-4 py-3">Unit</th>
+                    <th className="px-4 py-3 text-right">Selling Price</th>
+                    <th className="px-4 py-3 text-right">Low Stock</th>
+                    <th className="px-4 py-3 text-right">Stock</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loading ? (
+                    Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
+                  ) : pageRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-16 text-center">
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center">
+                            <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.4} stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
                             </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeactivateTarget(p)}
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                            title="Deactivate product"
-                            aria-label={`Deactivate ${p.name}`}
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                            </svg>
-                          </button>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-slate-600">
+                              {hasFilters ? 'No products match your filters' : 'No products yet'}
+                            </p>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {hasFilters
+                                ? 'Try a different search term or clear the filters'
+                                : 'Add your first product to start building your catalog'}
+                            </p>
+                          </div>
+                          {!hasFilters && (
+                            <button
+                              type="button"
+                              onClick={() => setModal({ mode: 'create', product: null })}
+                              className="mt-1 text-sm font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
+                            >
+                              + Add Product
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                  ) : (
+                    pageRows.map((p) => {
+                      const stock = stockById.get(p.id);
+                      const hasStock = stock !== undefined && stock !== null;
+                      const threshold = p.low_stock_threshold;
+                      const isLow =
+                        hasStock &&
+                        threshold !== null &&
+                        threshold !== undefined &&
+                        parseFloat(stock) <= parseFloat(threshold);
+                      const unit = unitMap.get(p.unit);
 
-        {/* Pagination */}
-        {!loading && visibleProducts.length > ROWS_PER_PAGE && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
-            <p className="text-xs text-slate-500">
-              Showing {(safePage - 1) * ROWS_PER_PAGE + 1}–
-              {Math.min(safePage * ROWS_PER_PAGE, visibleProducts.length)} of {visibleProducts.length}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage(Math.max(1, safePage - 1))}
-                disabled={safePage === 1}
-                className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              >
-                ← Previous
-              </button>
-              <span className="text-xs text-slate-600 font-medium">
-                Page {safePage} of {totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage(Math.min(totalPages, safePage + 1))}
-                disabled={safePage === totalPages}
-                className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-              >
-                Next →
-              </button>
+                      return (
+                        <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 font-bold text-sm shrink-0">
+                                {(p.name || '?').charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-medium text-slate-900 truncate">{p.name || '—'}</p>
+                                <p className="text-xs text-slate-400 truncate">{p.sku || 'No SKU'}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600">
+                            {categoryMap.get(p.category) || '—'}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600">
+                            {brandMap.get(p.brand) || '—'}
+                          </td>
+                          <td className="px-4 py-3.5 text-slate-600">
+                            {unit ? unit.short_code || unit.name : '—'}
+                          </td>
+                          <td className="px-4 py-3.5 text-right text-slate-700 font-medium whitespace-nowrap">
+                            {fmtCurrency(p.current_selling_price)}
+                          </td>
+                          <td className="px-4 py-3.5 text-right text-slate-500 whitespace-nowrap">
+                            {fmtQty(p.low_stock_threshold)}
+                          </td>
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                            {hasStock ? (
+                              <span className="inline-flex items-center gap-2">
+                                <span className={isLow ? 'text-red-600 font-semibold' : 'text-slate-700 font-medium'}>
+                                  {fmtQty(stock)}
+                                </span>
+                                {isLow && (
+                                  <span className="text-[10px] uppercase tracking-wide font-semibold text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                                    Low
+                                  </span>
+                                )}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setModal({ mode: 'edit', product: p })}
+                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                                title="Edit product"
+                                aria-label={`Edit ${p.name}`}
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeactivateTarget(p)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                title="Deactivate product"
+                                aria-label={`Deactivate ${p.name}`}
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.8} stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
+
+            {/* Pagination */}
+            {!loading && visibleProducts.length > ROWS_PER_PAGE && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 bg-slate-50/50">
+                <p className="text-xs text-slate-500">
+                  Showing {(safePage - 1) * ROWS_PER_PAGE + 1}–
+                  {Math.min(safePage * ROWS_PER_PAGE, visibleProducts.length)} of {visibleProducts.length}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage(Math.max(1, safePage - 1))}
+                    disabled={safePage === 1}
+                    className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  >
+                    ← Previous
+                  </button>
+                  <span className="text-xs text-slate-600 font-medium">
+                    Page {safePage} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPage(Math.min(totalPages, safePage + 1))}
+                    disabled={safePage === totalPages}
+                    className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                  >
+                    Next →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
+
+      {tab !== 'products' && (
+        <LookupManager
+          api={api}
+          type={tab}
+          rows={tab === 'category' ? categories : tab === 'brand' ? brands : units}
+          products={products}
+          onSaved={handleLookupSaved}
+          onDeleted={handleLookupDeleted}
+        />
+      )}
 
       {/* Modals */}
       {modal && (
